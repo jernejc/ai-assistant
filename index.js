@@ -7,9 +7,12 @@ const openai = new OpenAI({
 
 const threadByUser = {}; // Store thread IDs by user
 
-const assistantIdToUse = "asst_fzovHtPViMFj"; // Replace with your assistant ID
-const modelToUse = "gpt-4-1106-preview"; // Open AI model
+const assistantIdToUse = "asst_TXgDmV8KQnQ6Xzxtbzl7p9ii"; // Replace with your assistant ID
 const userId = "test"; // you could have different threads for different users
+
+// run this mess in async wrapper
+
+(async () => {
 
 // Create a new thread if it's the user's first message
 if (!threadByUser[userId]) {
@@ -23,7 +26,7 @@ if (!threadByUser[userId]) {
   }
 }
 
-const userMessage = ""; // This is the user prompt
+const userMessage = "What is Cupertino high school address"; // This is the user prompt
 
 // Add a Message to the Thread
 try {
@@ -41,12 +44,13 @@ try {
     threadByUser[userId], // Use the stored thread ID for this user
     {
       assistant_id: assistantIdToUse,
-      instructions: "", // Your instructions here
+      instructions: "You are a helpful assistant that leverages retrieved files to answer questions.", // Your instructions here
       tools: [
         { type: "retrieval" }, // Retrieval tool
       ],
     }
   );
+
   console.log("This is the run object: ", myRun, "\n");
 
   // Periodically retrieve the Run to check on its status
@@ -64,11 +68,12 @@ try {
       if (keepRetrievingRun.status === "completed") {
         console.log("\n");
         break;
+      } else if (keepRetrievingRun.status === "failed") {
+        console.log("Run failed", keepRetrievingRun);
+        break;
       }
     }
   };
-
-  retrieveRun();
 
   // Retrieve the Messages added by the Assistant to the Thread
   const waitForAssistantMessage = async () => {
@@ -77,7 +82,6 @@ try {
     const allMessages = await openai.beta.threads.messages.list(
       threadByUser[userId] // Use the stored thread ID for this user
     );
-
 
     const response = allMessages.data[0].content[0].text.value;
 
@@ -94,3 +98,5 @@ try {
 } catch (error) {
   console.error("Error:", error);
 }
+
+})();
