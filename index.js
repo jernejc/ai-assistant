@@ -1,102 +1,78 @@
-require('dotenv').config()
+require("dotenv").config()
 
 const OpenAI = require("openai");
-const openai = new OpenAI({
-  apiKey: process.OPENAI_KEY, // Replace with your OpenAI API key
+const client = new OpenAI({
+  apiKey: process.OPENAI_API_KEY,
 });
 
-const threadByUser = {}; // Store thread IDs by user
-
-const assistantIdToUse = "asst_TXgDmV8KQnQ6Xzxtbzl7p9ii"; // Replace with your assistant ID
-const userId = "test"; // you could have different threads for different users
-
-// run this mess in async wrapper
+const assistant_id = "asst_TXgDmV8KQnQ6Xzxtbzl7p9ii";
+const user_prompt = "Who will the Board president call";
 
 (async () => {
 
-// Create a new thread if it's the user's first message
-if (!threadByUser[userId]) {
-  try {
-    const myThread = await openai.beta.threads.create();
-    console.log("New thread created with ID: ", myThread.id, "\n");
-    threadByUser[userId] = myThread.id; // Store the thread ID for this user
-  } catch (error) {
-    console.error("Error creating thread:", error);
-    return;
-  }
-}
+  console.log("create thread");
 
-const userMessage = "What is Cupertino high school address"; // This is the user prompt
+  const thread = await client.beta.threads.create();
+  const thread_id = thread.id;
 
-// Add a Message to the Thread
-try {
-  const myThreadMessage = await openai.beta.threads.messages.create(
-    threadByUser[userId], // Use the stored thread ID for this user
+  await client.beta.threads.messages.create(
+    thread_id,
     {
       role: "user",
-      content: userMessage,
+      content: user_prompt,
     }
   );
 
-  console.log("This is the message object: ", myThreadMessage, "\n");
-
-  const myRun = await openai.beta.threads.runs.create(
-    threadByUser[userId], // Use the stored thread ID for this user
+  const run = await client.beta.threads.runs.create(
+    thread_id, 
     {
-      assistant_id: assistantIdToUse,
-      instructions: "You are a helpful assistant that leverages retrieved files to answer questions.", // Your instructions here
-      tools: [
-        { type: "retrieval" }, // Retrieval tool
-      ],
+      assistant_id: assistant_id
     }
   );
 
-  console.log("This is the run object: ", myRun, "\n");
+  const retrieve_run = async () => {
+    let run_retrieve;
 
-  // Periodically retrieve the Run to check on its status
-  const retrieveRun = async () => {
-    let keepRetrievingRun;
+    console.log("retrieve run");
 
-    while (myRun.status !== "completed") {
-      keepRetrievingRun = await openai.beta.threads.runs.retrieve(
-        threadByUser[userId], // Use the stored thread ID for this user
-        myRun.id
+    while (run.status !== "completed") {
+      await sleep(500);
+      
+      run_retrieve = await client.beta.threads.runs.retrieve(
+        thread_id, // Use the stored thread ID for this user
+        run.id
       );
 
-      console.log(`Run status: ${keepRetrievingRun.status}`);
+      console.log(`run status ${run_retrieve.status}`);
 
-      if (keepRetrievingRun.status === "completed") {
+      if (run_retrieve.status === "completed") {
         console.log("\n");
         break;
-      } else if (keepRetrievingRun.status === "failed") {
-        console.log("Run failed", keepRetrievingRun);
+      } else if (run_retrieve.status === "failed") {
+        console.log(`run failed ${run_retrieve}`);
         break;
       }
     }
   };
 
-  // Retrieve the Messages added by the Assistant to the Thread
-  const waitForAssistantMessage = async () => {
-    await retrieveRun();
+  const get_response = async () => {
+    await retrieve_run();
 
-    const allMessages = await openai.beta.threads.messages.list(
-      threadByUser[userId] // Use the stored thread ID for this user
+    const messages = await client.beta.threads.messages.list(
+      thread_id 
     );
 
-    const response = allMessages.data[0].content[0].text.value;
-
+    const response = messages.data[0].content[0].text.value;
     console.log(response)
-    console.log(
-      "------------------------------------------------------------ \n"
-    );
-
-    console.log("User: ", myThreadMessage.content[0].text.value);
-    console.log("Assistant: ", allMessages.data[0].content[0].text.value);
   };
 
-  waitForAssistantMessage();
-} catch (error) {
-  console.error("Error:", error);
-}
+  get_response();
 
 })();
+
+// need to sleep (python has this build in)
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
